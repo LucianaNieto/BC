@@ -1,8 +1,8 @@
-from sys import modules
 import ee
 import os
 import warnings
 import datetime
+import fiona
 import geopandas as gpd
 import folium
 import streamlit as st
@@ -20,49 +20,193 @@ def ee_authenticate(token_name="EARTHENGINE_TOKEN"):
     geemap.ee_initialize(token_name=token_name)
 
 
-
-st.sidebar.title("About")
 st.sidebar.info(
-    """ buscoCampo / images 
-    aca se pueden poner mas cosas, links logos etc 
+    """
+    - Web App URL: <https://streamlit.geemap.org>
+    - GitHub repository: <https://github.com/giswqs/streamlit-geospatial>
     """
 )
 
+st.sidebar.title("Contact")
+st.sidebar.info(
+    """
+    Qiusheng Wu: <https://wetlands.io>
+    [GitHub](https://github.com/giswqs) | [Twitter](https://twitter.com/giswqs) | [YouTube](https://www.youtube.com/c/QiushengWu) | [LinkedIn](https://www.linkedin.com/in/qiushengwu)
+    """
+)
+
+goes_rois = {
+    "Creek Fire, CA (2020-09-05)": {
+        "region": Polygon(
+            [
+                [-121.003418, 36.848857],
+                [-121.003418, 39.049052],
+                [-117.905273, 39.049052],
+                [-117.905273, 36.848857],
+                [-121.003418, 36.848857],
+            ]
+        ),
+        "start_time": "2020-09-05T15:00:00",
+        "end_time": "2020-09-06T02:00:00",
+    },
+    "Bomb Cyclone (2021-10-24)": {
+        "region": Polygon(
+            [
+                [-159.5954, 60.4088],
+                [-159.5954, 24.5178],
+                [-114.2438, 24.5178],
+                [-114.2438, 60.4088],
+            ]
+        ),
+        "start_time": "2021-10-24T14:00:00",
+        "end_time": "2021-10-25T01:00:00",
+    },
+    "Hunga Tonga Volcanic Eruption (2022-01-15)": {
+        "region": Polygon(
+            [
+                [-192.480469, -32.546813],
+                [-192.480469, -8.754795],
+                [-157.587891, -8.754795],
+                [-157.587891, -32.546813],
+                [-192.480469, -32.546813],
+            ]
+        ),
+        "start_time": "2022-01-15T03:00:00",
+        "end_time": "2022-01-15T07:00:00",
+    },
+    "Hunga Tonga Volcanic Eruption Closer Look (2022-01-15)": {
+        "region": Polygon(
+            [
+                [-178.901367, -22.958393],
+                [-178.901367, -17.85329],
+                [-171.452637, -17.85329],
+                [-171.452637, -22.958393],
+                [-178.901367, -22.958393],
+            ]
+        ),
+        "start_time": "2022-01-15T03:00:00",
+        "end_time": "2022-01-15T07:00:00",
+    },
+}
+
 
 landsat_rois = {
-    "Pergamino": Polygon(
+    "Aral Sea": Polygon(
         [
-            [-60.745468, -33.801974],
-            [-60.745468, -33.741471],
-            [-60.678177, -33.741471],
-            [-60.678177, -33.801974],
-            [-60.745468, -33.801974],
+            [57.667236, 43.834527],
+            [57.667236, 45.996962],
+            [61.12793, 45.996962],
+            [61.12793, 43.834527],
+            [57.667236, 43.834527],
         ]
     ),
-    "Balcarce": Polygon(
+    "Dubai": Polygon(
         [
-            [-58.266678, -37.709628],
-            [-58.266678, -37.685451],
-            [-58.215523, -37.685451],
-            [-58.215523, -37.709628],
-            [-58.266678, -37.709628],
+            [54.541626, 24.763044],
+            [54.541626, 25.427152],
+            [55.632019, 25.427152],
+            [55.632019, 24.763044],
+            [54.541626, 24.763044],
         ]
     ),
-    "Traful": Polygon(
+    "Hong Kong International Airport": Polygon(
         [
-            [-71.582794, -40.568589],
-            [-71.582794, -40.514321],
-            [-71.460228, -40.514321],
-            [-71.460228, -40.568589],
-            [-71.582794, -40.568589],
+            [113.825226, 22.198849],
+            [113.825226, 22.349758],
+            [114.085121, 22.349758],
+            [114.085121, 22.198849],
+            [113.825226, 22.198849],
+        ]
+    ),
+    "Las Vegas, NV": Polygon(
+        [
+            [-115.554199, 35.804449],
+            [-115.554199, 36.558188],
+            [-113.903503, 36.558188],
+            [-113.903503, 35.804449],
+            [-115.554199, 35.804449],
+        ]
+    ),
+    "Pucallpa, Peru": Polygon(
+        [
+            [-74.672699, -8.600032],
+            [-74.672699, -8.254983],
+            [-74.279938, -8.254983],
+            [-74.279938, -8.600032],
+        ]
+    ),
+    "Sierra Gorda, Chile": Polygon(
+        [
+            [-69.315491, -22.837104],
+            [-69.315491, -22.751488],
+            [-69.190006, -22.751488],
+            [-69.190006, -22.837104],
+            [-69.315491, -22.837104],
         ]
     ),
 }
 
-#agregar el chunck sacado aca
+modis_rois = {
+    "World": Polygon(
+        [
+            [-171.210938, -57.136239],
+            [-171.210938, 79.997168],
+            [177.539063, 79.997168],
+            [177.539063, -57.136239],
+            [-171.210938, -57.136239],
+        ]
+    ),
+    "Africa": Polygon(
+        [
+            [-18.6983, 38.1446],
+            [-18.6983, -36.1630],
+            [52.2293, -36.1630],
+            [52.2293, 38.1446],
+        ]
+    ),
+    "USA": Polygon(
+        [
+            [-127.177734, 23.725012],
+            [-127.177734, 50.792047],
+            [-66.269531, 50.792047],
+            [-66.269531, 23.725012],
+            [-127.177734, 23.725012],
+        ]
+    ),
+}
+
+ocean_rois = {
+    "Gulf of Mexico": Polygon(
+        [
+            [-101.206055, 15.496032],
+            [-101.206055, 32.361403],
+            [-75.673828, 32.361403],
+            [-75.673828, 15.496032],
+            [-101.206055, 15.496032],
+        ]
+    ),
+    "North Atlantic Ocean": Polygon(
+        [
+            [-85.341797, 24.046464],
+            [-85.341797, 45.02695],
+            [-55.810547, 45.02695],
+            [-55.810547, 24.046464],
+            [-85.341797, 24.046464],
+        ]
+    ),
+    "World": Polygon(
+        [
+            [-171.210938, -57.136239],
+            [-171.210938, 79.997168],
+            [177.539063, 79.997168],
+            [177.539063, -57.136239],
+            [-171.210938, -57.136239],
+        ]
+    ),
+}
 
 
-@st.cache
+@st.cache_data
 def uploaded_file_to_gdf(data):
     import tempfile
     import os
@@ -70,14 +214,13 @@ def uploaded_file_to_gdf(data):
 
     _, file_extension = os.path.splitext(data.name)
     file_id = str(uuid.uuid4())
-    file_path = os.path.join(tempfile.gettempdir(),
-                             f"{file_id}{file_extension}")
+    file_path = os.path.join(tempfile.gettempdir(), f"{file_id}{file_extension}")
 
     with open(file_path, "wb") as file:
         file.write(data.getbuffer())
 
     if file_path.lower().endswith(".kml"):
-        gpd.io.file.fiona.drvsupport.supported_drivers["KML"] = "rw"
+        fiona.drvsupport.supported_drivers["KML"] = "rw"
         gdf = gpd.read_file(file_path, driver="KML")
     else:
         gdf = gpd.read_file(file_path)
@@ -89,11 +232,12 @@ def app():
 
     today = date.today()
 
-    st.title("titulo acorde")
+    st.title("Create Satellite Timelapse")
 
     st.markdown(
         """
-     
+        An interactive web app for creating [Landsat](https://developers.google.com/earth-engine/datasets/catalog/landsat)/[GOES](https://jstnbraaten.medium.com/goes-in-earth-engine-53fbc8783c16) timelapse for any location around the globe. 
+        The app was built using [streamlit](https://streamlit.io), [geemap](https://geemap.org), and [Google Earth Engine](https://earthengine.google.com). For more info, check out my streamlit [blog post](https://blog.streamlit.io/creating-satellite-timelapse-with-streamlit-and-earth-engine). 
     """
     )
 
@@ -116,11 +260,11 @@ def app():
             locate_control=True,
             plugin_LatLngPopup=False,
         )
-        m.add_basemap("HYBRID")
+        m.add_basemap("ROADMAP")
 
     with row1_col2:
 
-        keyword = st.text_input("Busque su ciudad mas cercana:", "")
+        keyword = st.text_input("Search for a location:", "")
         if keyword:
             locations = geemap.geocode(keyword)
             if locations is not None and len(locations) > 0:
@@ -134,23 +278,23 @@ def app():
                 st.session_state["zoom_level"] = 12
 
         collection = st.selectbox(
-            "Elija que opcion desea: ",
+            "Select a satellite image collection: ",
             [
-            #    "Any Earth Engine ImageCollection",
-                "Landsat",
-                "Sentinel 2",
-            #    "Geostationary Operational Environmental Satellites (GOES)",
-            #    "MODIS Vegetation Indices (NDVI/EVI) 16-Day Global 1km",
-            #    "MODIS Gap filled Land Surface Temperature Daily",
-            #    "MODIS Ocean Color SMI",
-            #    "USDA National Agriculture Imagery Program (NAIP)",
+                "Any Earth Engine ImageCollection",
+                "Landsat TM-ETM-OLI Surface Reflectance",
+                "Sentinel-2 MSI Surface Reflectance",
+                "Geostationary Operational Environmental Satellites (GOES)",
+                "MODIS Vegetation Indices (NDVI/EVI) 16-Day Global 1km",
+                "MODIS Gap filled Land Surface Temperature Daily",
+                "MODIS Ocean Color SMI",
+                "USDA National Agriculture Imagery Program (NAIP)",
             ],
             index=1,
         )
 
         if collection in [
-            "Landsat",
-            "Sentinel 2",
+            "Landsat TM-ETM-OLI Surface Reflectance",
+            "Sentinel-2 MSI Surface Reflectance",
         ]:
             roi_options = ["Uploaded GeoJSON"] + list(landsat_rois.keys())
 
@@ -168,8 +312,7 @@ def app():
             roi_options = ["Uploaded GeoJSON"]
 
         if collection == "Any Earth Engine ImageCollection":
-            keyword = st.text_input(
-                "Enter a keyword to search (e.g., MODIS):", "")
+            keyword = st.text_input("Enter a keyword to search (e.g., MODIS):", "")
             if keyword:
 
                 assets = geemap.search_ee_data(keyword)
@@ -191,16 +334,14 @@ def app():
                 if dataset is not None:
                     with st.expander("Show dataset details", False):
                         index = asset_titles.index(dataset)
-                        html = geemap.ee_data_html(
-                            st.session_state["ee_assets"][index])
+                        html = geemap.ee_data_html(st.session_state["ee_assets"][index])
                         st.markdown(html, True)
             # elif collection == "MODIS Gap filled Land Surface Temperature Daily":
             #     ee_id = ""
             else:
                 ee_id = ""
 
-            asset_id = st.text_input(
-                "Enter an ee.ImageCollection asset ID:", ee_id)
+            asset_id = st.text_input("Enter an ee.ImageCollection asset ID:", ee_id)
 
             if asset_id:
                 with st.expander("Customize band combination and color palette", True):
@@ -234,8 +375,7 @@ def app():
                             palette_values,
                         )
                         st.write(
-                            cm.plot_colormap(
-                                cmap=palette_options, return_fig=True)
+                            cm.plot_colormap(cmap=palette_options, return_fig=True)
                         )
                         st.session_state["palette"] = eval(palette)
 
@@ -271,8 +411,7 @@ def app():
                 )
 
             MODIS_options = ["Daytime (1:30 pm)", "Nighttime (1:30 am)"]
-            MODIS_option = st.selectbox(
-                "Select a MODIS dataset:", MODIS_options)
+            MODIS_option = st.selectbox("Select a MODIS dataset:", MODIS_options)
             if MODIS_option == "Daytime (1:30 pm)":
                 st.session_state[
                     "ee_asset_id"
@@ -354,21 +493,69 @@ def app():
             st.session_state["palette"] = eval(palette)
 
         sample_roi = st.selectbox(
-            "Elija su archivo o bien un ejemplo de la lista: ",
+            "Select a sample ROI or upload a GeoJSON file:",
             roi_options,
             index=0,
         )
 
+        add_outline = st.checkbox(
+            "Overlay an administrative boundary on timelapse", False
+        )
+
+        if add_outline:
+
+            with st.expander("Customize administrative boundary", True):
+
+                overlay_options = {
+                    "User-defined": None,
+                    "Continents": "continents",
+                    "Countries": "countries",
+                    "US States": "us_states",
+                    "China": "china",
+                }
+
+                overlay = st.selectbox(
+                    "Select an administrative boundary:",
+                    list(overlay_options.keys()),
+                    index=2,
+                )
+
+                overlay_data = overlay_options[overlay]
+
+                if overlay_data is None:
+                    overlay_data = st.text_input(
+                        "Enter an HTTP URL to a GeoJSON file or an ee.FeatureCollection asset id:",
+                        "https://raw.githubusercontent.com/giswqs/geemap/master/examples/data/countries.geojson",
+                    )
+
+                overlay_color = st.color_picker(
+                    "Select a color for the administrative boundary:", "#000000"
+                )
+                overlay_width = st.slider(
+                    "Select a line width for the administrative boundary:", 1, 20, 1
+                )
+                overlay_opacity = st.slider(
+                    "Select an opacity for the administrative boundary:",
+                    0.0,
+                    1.0,
+                    1.0,
+                    0.05,
+                )
+        else:
+            overlay_data = None
+            overlay_color = "black"
+            overlay_width = 1
+            overlay_opacity = 1
 
     with row1_col1:
 
         with st.expander(
-            "Instrucciones: localize su campo haciendo zoom -> dibuje el poligono del campo-> en el sector derecho vera un boton que dice 'export' -> exporte como GeoJSON en una locacion que recuerde -> subalo a la app -> 👉"
+            "Steps: Draw a rectangle on the map -> Export it as a GeoJSON -> Upload it back to the app -> Click the Submit button. Expand this tab to see a demo 👉"
         ):
             video_empty = st.empty()
 
         data = st.file_uploader(
-            "Suba el archivo de su campo aqui",
+            "Upload a GeoJSON file to use as an ROI. Customize timelapse parameters and then click the Submit button 😇👇",
             type=["geojson", "kml", "zip"],
         )
 
@@ -387,8 +574,8 @@ def app():
                 #     m.set_center(4.20, 18.63, zoom=2)
         else:
             if collection in [
-                "Landsat",
-                "Sentinel 2",
+                "Landsat TM-ETM-OLI Surface Reflectance",
+                "Sentinel-2 MSI Surface Reflectance",
             ]:
                 gdf = gpd.GeoDataFrame(
                     index=[0], crs=crs, geometry=[landsat_rois[sample_roi]]
@@ -408,8 +595,8 @@ def app():
         if sample_roi != "Uploaded GeoJSON":
 
             if collection in [
-                "Landsat",
-                "Sentinel 2",
+                "Landsat TM-ETM-OLI Surface Reflectance",
+                "Sentinel-2 MSI Surface Reflectance",
             ]:
                 gdf = gpd.GeoDataFrame(
                     index=[0], crs=crs, geometry=[landsat_rois[sample_roi]]
@@ -455,19 +642,19 @@ def app():
     with row1_col2:
 
         if collection in [
-            "Landsat",
-            "Sentinel 2",
+            "Landsat TM-ETM-OLI Surface Reflectance",
+            "Sentinel-2 MSI Surface Reflectance",
         ]:
 
-            if collection == "Landsat":
+            if collection == "Landsat TM-ETM-OLI Surface Reflectance":
                 sensor_start_year = 1984
                 timelapse_title = "Landsat Timelapse"
                 timelapse_speed = 5
-            elif collection == "Sentinel 2":
+            elif collection == "Sentinel-2 MSI Surface Reflectance":
                 sensor_start_year = 2015
                 timelapse_title = "Sentinel-2 Timelapse"
                 timelapse_speed = 5
-            video_empty.video("https://www.youtube.com/watch?v=O8_WJIzN43E")
+            video_empty.video("https://youtu.be/VVRK_-dEjR4")
 
             with st.form("submit_landsat_form"):
 
@@ -477,10 +664,10 @@ def app():
                 out_gif = geemap.temp_file_path(".gif")
 
                 title = st.text_input(
-                    "Ingrese un titulo: ", timelapse_title
+                    "Enter a title to show on the timelapse: ", timelapse_title
                 )
                 RGB = st.selectbox(
-                    "Combinacion:",
+                    "Select an RGB band combination:",
                     [
                         "Red/Green/Blue",
                         "NIR/Red/Green",
@@ -499,21 +686,20 @@ def app():
                 )
 
                 frequency = st.selectbox(
-                    "Frecuencia:",
+                    "Select a temporal frequency:",
                     ["year", "quarter", "month"],
                     index=0,
                 )
 
-                with st.expander("Ajustes"):
+                with st.expander("Customize timelapse"):
 
-                    speed = st.slider("Frames per second:",
-                                      1, 30, timelapse_speed)
+                    speed = st.slider("Frames per second:", 1, 30, timelapse_speed)
                     dimensions = st.slider(
                         "Maximum dimensions (Width*Height) in pixels", 768, 2000, 768
                     )
-                    #progress_bar_color = st.color_picker(
-                    #    "Progress bar color:", "#0000ff"
-                    #)
+                    progress_bar_color = st.color_picker(
+                        "Progress bar color:", "#0000ff"
+                    )
                     years = st.slider(
                         "Start and end year:",
                         sensor_start_year,
@@ -521,35 +707,35 @@ def app():
                         (sensor_start_year, today.year),
                     )
                     months = st.slider("Start and end month:", 1, 12, (1, 12))
-                    #font_size = st.slider("Font size:", 10, 50, 30)
-                    #font_color = st.color_picker("Font color:", "#ffffff")
-                    #apply_fmask = st.checkbox(
-                    #    "Apply fmask (remove clouds, shadows, snow)", True
-                    #)
-                    #font_type = st.selectbox(
-                    #    "Select the font type for the title:",
-                    #    ["arial.ttf", "alibaba.otf"],
-                    #    index=0,
-                    #)
-                    #fading = st.slider(
-                    #    "Fading duration (seconds) for each frame:", 0.0, 3.0, 0.0
-                    #)
-                    mp4 = st.checkbox("Descargar archivo", True)
+                    font_size = st.slider("Font size:", 10, 50, 30)
+                    font_color = st.color_picker("Font color:", "#ffffff")
+                    apply_fmask = st.checkbox(
+                        "Apply fmask (remove clouds, shadows, snow)", True
+                    )
+                    font_type = st.selectbox(
+                        "Select the font type for the title:",
+                        ["arial.ttf", "alibaba.otf"],
+                        index=0,
+                    )
+                    fading = st.slider(
+                        "Fading duration (seconds) for each frame:", 0.0, 3.0, 0.0
+                    )
+                    mp4 = st.checkbox("Save timelapse as MP4", True)
 
                 empty_text = st.empty()
                 empty_image = st.empty()
                 empty_fire_image = st.empty()
                 empty_video = st.container()
-                submitted = st.form_submit_button("Ejecutar")
+                submitted = st.form_submit_button("Submit")
                 if submitted:
 
                     if sample_roi == "Uploaded GeoJSON" and data is None:
                         empty_text.warning(
-                            "Por favor cree un poligono, o seleccione de la lista"
+                            "Steps to create a timelapse: Draw a rectangle on the map -> Export it as a GeoJSON -> Upload it back to the app -> Click the Submit button. Alternatively, you can select a sample ROI from the dropdown list."
                         )
                     else:
 
-                        empty_text.text("Estamos trabajando en su pedido")
+                        empty_text.text("Computing... Please wait...")
 
                         start_year = years[0]
                         end_year = years[1]
@@ -558,7 +744,7 @@ def app():
                         bands = RGB.split("/")
 
                         try:
-                            if collection == "Landsat":
+                            if collection == "Landsat TM-ETM-OLI Surface Reflectance":
                                 out_gif = geemap.landsat_timelapse(
                                     roi=roi,
                                     out_gif=out_gif,
@@ -567,14 +753,14 @@ def app():
                                     start_date=start_date,
                                     end_date=end_date,
                                     bands=bands,
-                                    #apply_fmask=apply_fmask,
+                                    apply_fmask=apply_fmask,
                                     frames_per_second=speed,
                                     # dimensions=dimensions,
                                     dimensions=768,
-                                    #overlay_data=overlay_data,
-                                    #overlay_color=overlay_color,
-                                    #overlay_width=overlay_width,
-                                    #overlay_opacity=overlay_opacity,
+                                    overlay_data=overlay_data,
+                                    overlay_color=overlay_color,
+                                    overlay_width=overlay_width,
+                                    overlay_opacity=overlay_opacity,
                                     frequency=frequency,
                                     date_format=None,
                                     title=title,
@@ -582,17 +768,17 @@ def app():
                                     add_text=True,
                                     text_xy=("2%", "2%"),
                                     text_sequence=None,
-                                    #font_type=font_type,
-                                    #font_size=font_size,
-                                    #font_color=font_color,
-                                    #add_progress_bar=True,
-                                    #progress_bar_color=progress_bar_color,
-                                    #progress_bar_height=5,
+                                    font_type=font_type,
+                                    font_size=font_size,
+                                    font_color=font_color,
+                                    add_progress_bar=True,
+                                    progress_bar_color=progress_bar_color,
+                                    progress_bar_height=5,
                                     loop=0,
                                     mp4=mp4,
-                                    #fading=fading,
+                                    fading=fading,
                                 )
-                            elif collection == "Sentinel 2":
+                            elif collection == "Sentinel-2 MSI Surface Reflectance":
                                 out_gif = geemap.sentinel2_timelapse(
                                     roi=roi,
                                     out_gif=out_gif,
@@ -601,14 +787,14 @@ def app():
                                     start_date=start_date,
                                     end_date=end_date,
                                     bands=bands,
-                                    #apply_fmask=apply_fmask,
+                                    apply_fmask=apply_fmask,
                                     frames_per_second=speed,
                                     dimensions=768,
                                     # dimensions=dimensions,
-                                    #overlay_data=overlay_data,
-                                    #overlay_color=overlay_color,
-                                    #overlay_width=overlay_width,
-                                    #overlay_opacity=overlay_opacity,
+                                    overlay_data=overlay_data,
+                                    overlay_color=overlay_color,
+                                    overlay_width=overlay_width,
+                                    overlay_opacity=overlay_opacity,
                                     frequency=frequency,
                                     date_format=None,
                                     title=title,
@@ -616,26 +802,26 @@ def app():
                                     add_text=True,
                                     text_xy=("2%", "2%"),
                                     text_sequence=None,
-                                    #font_type=font_type,
-                                    #font_size=font_size,
-                                    #font_color=font_color,
-                                    #add_progress_bar=True,
-                                    #progress_bar_color=progress_bar_color,
-                                    #progress_bar_height=5,
+                                    font_type=font_type,
+                                    font_size=font_size,
+                                    font_color=font_color,
+                                    add_progress_bar=True,
+                                    progress_bar_color=progress_bar_color,
+                                    progress_bar_height=5,
                                     loop=0,
                                     mp4=mp4,
-                                    #fading=fading,
+                                    fading=fading,
                                 )
                         except:
                             empty_text.error(
-                                "algo ocurrio, pruebe ajustando la fecha y/o taman~o del poligono"
+                                "An error occurred while computing the timelapse. Your probably requested too much data. Try reducing the ROI or timespan."
                             )
                             st.stop()
 
                         if out_gif is not None and os.path.exists(out_gif):
 
                             empty_text.text(
-                                " "
+                                "Right click the GIF to save it to your computer👇"
                             )
                             empty_image.image(out_gif)
 
@@ -643,13 +829,13 @@ def app():
                             if mp4 and os.path.exists(out_mp4):
                                 with empty_video:
                                     st.text(
-                                        " "
+                                        "Right click the MP4 to save it to your computer👇"
                                     )
                                     st.video(out_gif.replace(".gif", ".mp4"))
 
                         else:
                             empty_text.error(
-                                "algo ocurrio, pruebe ajustando la fecha y/o taman~o del poligono"
+                                "Something went wrong. You probably requested too much data. Try reducing the ROI or timespan."
                             )
 
         elif collection == "Geostationary Operational Environmental Satellites (GOES)":
@@ -663,8 +849,7 @@ def app():
                     roi = st.session_state.get("roi")
                 out_gif = geemap.temp_file_path(".gif")
 
-                satellite = st.selectbox("Select a satellite:", [
-                                         "GOES-17", "GOES-16"])
+                satellite = st.selectbox("Select a satellite:", ["GOES-17", "GOES-16"])
                 earliest_date = datetime.date(2017, 7, 10)
                 latest_date = datetime.date.today()
 
@@ -679,8 +864,7 @@ def app():
                     roi_start_date = datetime.datetime.strptime(
                         roi_start[:10], "%Y-%m-%d"
                     )
-                    roi_end_date = datetime.datetime.strptime(
-                        roi_end[:10], "%Y-%m-%d")
+                    roi_end_date = datetime.datetime.strptime(roi_end[:10], "%Y-%m-%d")
                     roi_start_time = datetime.time(
                         int(roi_start[11:13]), int(roi_start[14:16])
                     )
@@ -688,18 +872,15 @@ def app():
                         int(roi_end[11:13]), int(roi_end[14:16])
                     )
 
-                start_date = st.date_input(
-                    "Select the start date:", roi_start_date)
+                start_date = st.date_input("Select the start date:", roi_start_date)
                 end_date = st.date_input("Select the end date:", roi_end_date)
 
                 with st.expander("Customize timelapse"):
 
-                    add_fire = st.checkbox(
-                        "Add Fire/Hotspot Characterization", False)
+                    add_fire = st.checkbox("Add Fire/Hotspot Characterization", False)
 
                     scan_type = st.selectbox(
-                        "Select a scan type:", [
-                            "Full Disk", "CONUS", "Mesoscale"]
+                        "Select a scan type:", ["Full Disk", "CONUS", "Mesoscale"]
                     )
 
                     start_time = st.time_input(
@@ -731,7 +912,7 @@ def app():
                     fading = st.slider(
                         "Fading duration (seconds) for each frame:", 0.0, 3.0, 0.0
                     )
-                    mp4 = st.checkbox("Descargar archivo", True)
+                    mp4 = st.checkbox("Save timelapse as MP4", True)
 
                 empty_text = st.empty()
                 empty_image = st.empty()
@@ -840,8 +1021,7 @@ def app():
                     start = st.date_input(
                         "Select a start date:", datetime.date(2000, 2, 8)
                     )
-                    end = st.date_input(
-                        "Select an end date:", datetime.date.today())
+                    end = st.date_input("Select an end date:", datetime.date.today())
 
                     start_date = start.strftime("%Y-%m-%d")
                     end_date = end.strftime("%Y-%m-%d")
@@ -862,7 +1042,7 @@ def app():
                     fading = st.slider(
                         "Fading duration (seconds) for each frame:", 0.0, 3.0, 0.0
                     )
-                    mp4 = st.checkbox("Descargar archivo", True)
+                    mp4 = st.checkbox("Save timelapse as MP4", True)
 
                 empty_text = st.empty()
                 empty_image = st.empty()
@@ -916,7 +1096,7 @@ def app():
                 with st.expander("Customize timelapse"):
 
                     title = st.text_input(
-                        "Ingrese un titulo", "Timelapse"
+                        "Enter a title to show on the timelapse: ", "Timelapse"
                     )
                     start_date = st.date_input(
                         "Select the start date:", datetime.date(2020, 1, 1)
@@ -926,14 +1106,12 @@ def app():
                     )
                     frequency = st.selectbox(
                         "Select a temporal frequency:",
-                        ["year", "quarter", "month", "day",
-                            "hour", "minute", "second"],
+                        ["year", "quarter", "month", "day", "hour", "minute", "second"],
                         index=0,
                     )
                     reducer = st.selectbox(
                         "Select a reducer for aggregating data:",
-                        ["median", "mean", "min", "max",
-                            "sum", "variance", "stdDev"],
+                        ["median", "mean", "min", "max", "sum", "variance", "stdDev"],
                         index=0,
                     )
                     data_format = st.selectbox(
@@ -969,7 +1147,7 @@ def app():
                     fading = st.slider(
                         "Fading duration (seconds) for each frame:", 0.0, 3.0, 0.0
                     )
-                    mp4 = st.checkbox("Descargar archivo", True)
+                    mp4 = st.checkbox("Save timelapse as MP4", True)
 
                 empty_text = st.empty()
                 empty_image = st.empty()
@@ -1053,7 +1231,7 @@ def app():
                 with st.expander("Customize timelapse"):
 
                     title = st.text_input(
-                        "Ingrese un titulo: ",
+                        "Enter a title to show on the timelapse: ",
                         "Surface Temperature",
                     )
                     start_date = st.date_input(
@@ -1069,8 +1247,7 @@ def app():
                     )
                     reducer = st.selectbox(
                         "Select a reducer for aggregating data:",
-                        ["median", "mean", "min", "max",
-                            "sum", "variance", "stdDev"],
+                        ["median", "mean", "min", "max", "sum", "variance", "stdDev"],
                         index=0,
                     )
 
@@ -1099,7 +1276,7 @@ def app():
                     fading = st.slider(
                         "Fading duration (seconds) for each frame:", 0.0, 3.0, 0.0
                     )
-                    mp4 = st.checkbox("Descargar archivo", True)
+                    mp4 = st.checkbox("Save timelapse as MP4", True)
 
                 empty_text = st.empty()
                 empty_image = st.empty()
@@ -1237,7 +1414,7 @@ def app():
                 with st.expander("Customize timelapse"):
 
                     title = st.text_input(
-                        "Ingrese un titulo: ", "NAIP Timelapse"
+                        "Enter a title to show on the timelapse: ", "NAIP Timelapse"
                     )
 
                     years = st.slider(
@@ -1266,7 +1443,7 @@ def app():
                     fading = st.slider(
                         "Fading duration (seconds) for each frame:", 0.0, 3.0, 0.0
                     )
-                    mp4 = st.checkbox("Descargar archivo", True)
+                    mp4 = st.checkbox("Save timelapse as MP4", True)
 
                 empty_text = st.empty()
                 empty_image = st.empty()
